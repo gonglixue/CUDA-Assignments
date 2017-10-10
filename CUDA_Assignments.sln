@@ -3,18 +3,34 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "A1", "A1\A1.vcxproj", "{B672FB6F-14B1-4C4C-A142-C04FB084BFCC}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "A1_JuliaSet", "A1_JuliaSet\A1_JuliaSet.vcxproj", "{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "JuliaSetShader", "JuliaSetShader\JuliaSetShader.vcxproj", "{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|x64 = Release|x64
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{B672FB6F-14B1-4C4C-A142-C04FB084BFCC}.Debug|x64.ActiveCfg = Debug|x64
-		{B672FB6F-14B1-4C4C-A142-C04FB084BFCC}.Debug|x64.Build.0 = Debug|x64
-		{B672FB6F-14B1-4C4C-A142-C04FB084BFCC}.Release|x64.ActiveCfg = Release|x64
-		{B672FB6F-14B1-4C4C-A142-C04FB084BFCC}.Release|x64.Build.0 = Release|x64
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Debug|x64.ActiveCfg = Debug|x64
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Debug|x64.Build.0 = Debug|x64
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Debug|x86.ActiveCfg = Debug|Win32
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Debug|x86.Build.0 = Debug|Win32
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Release|x64.ActiveCfg = Release|x64
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Release|x64.Build.0 = Release|x64
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Release|x86.ActiveCfg = Release|Win32
+		{6EF2AFF0-5790-4990-B1F6-B55EBD3629CE}.Release|x86.Build.0 = Release|Win32
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Debug|x64.ActiveCfg = Debug|x64
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Debug|x64.Build.0 = Debug|x64
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Debug|x86.ActiveCfg = Debug|Win32
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Debug|x86.Build.0 = Debug|Win32
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Release|x64.ActiveCfg = Release|x64
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Release|x64.Build.0 = Release|x64
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Release|x86.ActiveCfg = Release|Win32
+		{5D28E680-1ED8-41FB-B4D4-A9B6CB525F85}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
