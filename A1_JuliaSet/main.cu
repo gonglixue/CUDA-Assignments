@@ -92,14 +92,16 @@ int main(void)
 	unsigned char *ptr = bitmap.get_ptr();
 
 	start = clock();
+	DWORD start_d = GetTickCount();
 	for (int i = 0; i < 100; i++)
 	{
 		CPU_kernel(ptr);
 	}
 	
 	finish = clock();
+	DWORD finish_d = GetTickCount();
 	printf("CPU time: %f ms\n", 10.0 * (finish - start) / CLOCKS_PER_SEC);
-
+	//printf("CPU time2: %f ms\n", (float)(finish_d - start_d));
 	bitmap.display_and_exit();
 #pragma endregion CPU
 
