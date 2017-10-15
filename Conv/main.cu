@@ -34,14 +34,29 @@ __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned char* out, int
 	int p7 = ptr[(pixel_id + width) * depth + channel];
 	int p8 = ptr[(pixel_id + width + 1) * depth + channel];
 
-	int result = -1 * p0 - 2 * p3 - 1 * p6
+	int resultx = -1 * p0 - 2 * p3 - 1 * p6
 		+ 1 * p2 + 2 * p5 + 1 * p8;
-	if (result > 255)
-		result = 255;
-	else if (result < 0)
-		result = 0;
+	//if (resultx < 0)
+	//	resultx = 0;
+	resultx = abs(resultx);
+	if (resultx > 255)
+		resultx = 255;
 
-	out[pixel_id * depth + channel] = result;
+
+	int resulty = -1 * p0 - 2 * p1 - 1 * p2
+		+ p6 + 2 * p7 + p8;
+	//if (resulty < 0)
+	//	resulty = 0;
+	resulty = abs(resulty);
+	if (resulty > 255)
+		resulty = 255;
+
+	//int temp = sqrtf(resultx*resultx + resulty*resulty);
+	int temp = resultx + resulty;
+	if (temp > 255)
+		temp = 255;
+	out[pixel_id * depth + channel] = temp;
+	//out[pixel_id * depth + channel] = resultx + resulty;
 	//printf("x:%d, y:%d  z;%d origin:%d result:%d width:%d height:%d\n", idx, idy, channel, p4, result, width, height);
 	
 }
@@ -56,6 +71,11 @@ int main(int argc, char**argv)
 	channels = test.channels();
 	printf("channel: %d\n", channels);
 
+	cv::Mat StandardCVResult;
+	cv::Sobel(test, StandardCVResult, CV_8U, 1, 1, 3);
+	cv::imshow("standard cv", StandardCVResult);
+
+	// allocate host memory
 	uchar* h_image_raw_data = new uchar[width*height * channels];
 	memcpy(h_image_raw_data, test.data, width*height * channels);
 
@@ -76,9 +96,7 @@ int main(int argc, char**argv)
 	SimpleResult.data = h_image_raw_data;
 	cv::imshow("simple kernel", SimpleResult);
 
-	cv::Mat StandardCVResult;
-	cv::Sobel(test, StandardCVResult, CV_8U, 1, 0, 3);
-	cv::imshow("standard cv", StandardCVResult);
+
 	
 	cv::waitKey();
 
