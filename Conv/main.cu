@@ -178,6 +178,132 @@ __global__ void Advanced_Sobel_Kernel(unsigned char *ptr, unsigned short* out, i
 	
 }
 
+__global__ void Sobel_Cache(unsigned char *ptr, unsigned short* out, int width, int height)
+{
+	const int block_size = 32;
+	__shared__ uchar block_cache[block_size + 2][block_size + 2];
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int idy = blockIdx.y * blockDim.y + threadIdx.y;
+	int pixel_id = idy * width + idx;
+
+	// load data into shared memory
+	if (idx < width || idy < height ) {
+		int value = ptr[pixel_id];
+		block_cache[threadIdx.y + 1][threadIdx.x + 1] = value; // read itself into cache
+	
+		// read left-up corner element
+		int tempx, tempy;
+		if (threadIdx.x == 0 && threadIdx.y == 0) {
+			tempx = idx - 1; 
+			tempy = idy - 1;
+			if (tempx>=0 && tempy>=0)
+				block_cache[0][0] = ptr[tempy*width + tempx];
+			else
+				block_cache[0][0] = 0;
+		}
+		// read right-up corner element
+		else if (threadIdx.x == block_size - 1 && threadIdx.y == 0) {
+			tempx = idx + 1;
+			tempy = idy - 1;
+			if (tempx < width && tempy >=0)
+				block_cache[0][block_size+1] = ptr[tempy*width + tempx];
+			else
+				block_cache[0][block_size+1] = 0;
+		}
+		// read left-bottom corner element
+		else if (threadIdx.x == 0 && threadIdx.y == block_size - 1) {
+			tempx = idx - 1;
+			tempy = idy + 1;
+			if (tempx >=0 && tempy<height)
+				block_cache[block_size+1][0] = ptr[tempy*width + tempx];
+			else
+				block_cache[block_size+1][0] = 0;
+		}
+		// read right-bottom corner element
+		else if (threadIdx.x == block_size - 1 && threadIdx.y == block_size - 1) {
+			tempx = idx + 1;
+			tempy = idy + 1;
+			if (tempx < width && tempy < height)
+				block_cache[block_size+1][block_size+1] = ptr[tempy*width + tempx];
+			else
+				block_cache[block_size+1][block_size+1] = 0;
+		}
+
+		// read up side
+		if (threadIdx.y == 0) {
+			tempx = idx;
+			tempy = idy - 1;
+			if (tempy >= 0)
+				block_cache[0][threadIdx.x + 1] = ptr[tempy*width + tempx];
+			else
+				block_cache[0][threadIdx.x + 1] = 0;
+		}
+		// read bottom side
+		else if (threadIdx.y == block_size - 1) {
+			tempx = idx;
+			tempy = idy + 1;
+			if (tempy < height)
+				block_cache[block_size+1][threadIdx.x + 1] = ptr[tempy*width + tempx];
+			else
+				block_cache[block_size+1][threadIdx.x + 1] = 0;
+		}
+		// left
+		if (threadIdx.x == 0) {
+			tempx = idx - 1;
+			tempy = idy;
+			if (tempx >= 0)
+				block_cache[threadIdx.y + 1][0] = ptr[tempy*width + tempx];
+			else
+				block_cache[threadIdx.y + 1][0] = 0;
+		}
+		else if (threadIdx.x == block_size - 1)
+		{
+			tempx = idx + 1;
+			tempy = idy;
+			if (tempx < width)
+				block_cache[threadIdx.y + 1][block_size+1] = ptr[tempy*width + tempx];
+			else
+				block_cache[threadIdx.y + 1][block_size+1] = 0;
+		}
+
+
+	}
+	
+	__syncthreads();
+
+	if (idx < width && idy < height)
+	{
+		int centerx_in_cache = threadIdx.y + 1;  // cache row
+		int centery_in_cache = threadIdx.x + 1;  // cache col
+		int p0 = block_cache[centerx_in_cache - 1][centery_in_cache - 1];
+		int p1 = block_cache[centerx_in_cache][centery_in_cache - 1];
+		int p2 = block_cache[centerx_in_cache + 1][centery_in_cache - 1];
+
+		int p3 = block_cache[centerx_in_cache - 1][centery_in_cache];
+		int p4 = block_cache[centerx_in_cache][centery_in_cache];
+		int p5 = block_cache[centerx_in_cache + 1][centery_in_cache];
+
+		int p6 = block_cache[centerx_in_cache - 1][centery_in_cache + 1];
+		int p7 = block_cache[centerx_in_cache][centery_in_cache + 1];
+		int p8 = block_cache[centerx_in_cache + 1][centery_in_cache + 1];
+
+		int resultx = -1 * p0 - 2 * p3 - 1 * p6
+			+ 1 * p2 + 2 * p5 + 1 * p8;
+		resultx = abs(resultx);
+
+		int resulty = -1 * p0 - 2 * p1 - 1 * p2
+			+ p6 + 2 * p7 + p8;
+		resulty = abs(resulty);
+
+		//int temp = sqrtf(resultx*resultx + resulty*resulty);
+		int temp = resultx + resulty;
+		temp = temp > 65535 ? 65535 : temp;
+		//out[pixel_id] = temp;
+
+		out[pixel_id] = temp;
+	}
+}
+
 int main(int argc, char**argv)
 {
 	cv::Mat test = cv::imread(argv[1], 0);
@@ -252,25 +378,22 @@ int main(int argc, char**argv)
 #pragma region Advanced_GPU
 	block_size = dim3(32, 32, 1);
 	grid_size = dim3((width + block_size.x - 1) / block_size.x, (height + block_size.y - 1) / block_size.y, 1);
-	printf("cpu test: block_size %d grid_size %d\n", block_size.x, grid_size.x);
-
-
+	
 	//cudaMemset(d_out_data, 0, width*height * sizeof(unsigned short));
-	cudaEvent_t start_cuda2, finish_cuda2;
 	time = 0;
-	cudaEventCreate(&start_cuda2, 0);
-	cudaEventCreate(&finish_cuda2, 0);
+	cudaEventCreate(&start_cuda, 0);
+	cudaEventCreate(&finish_cuda, 0);
 
-	cudaEventRecord(start_cuda2, 0);
+	cudaEventRecord(start_cuda, 0);
 	for (int i = 0; i < 100; i++) {
 		Advanced_Sobel_Kernel << <grid_size, block_size >> > (d_image_raw_data, d_out_data, width, height);
 		cudaDeviceSynchronize();
 	}
-	cudaEventRecord(finish_cuda2, 0);
-	cudaEventSynchronize(finish_cuda2);
-	cudaEventElapsedTime(&time, start_cuda2, finish_cuda2);
-	cudaEventDestroy(start_cuda2);
-	cudaEventDestroy(finish_cuda2);
+	cudaEventRecord(finish_cuda, 0);
+	cudaEventSynchronize(finish_cuda);
+	cudaEventElapsedTime(&time, start_cuda, finish_cuda);
+	cudaEventDestroy(start_cuda);
+	cudaEventDestroy(finish_cuda);
 	//printf("device syn\n");
 	printf("Advanced GPU:%f ms\n", time);
 
@@ -280,12 +403,36 @@ int main(int argc, char**argv)
 	AdvancedResult.convertTo(AdvancedResult2, CV_8UC1, 255.0 / 1000);
 	cv::imshow("advanced kernel", AdvancedResult2);
 
-	cv::FileStorage fsFeature("./ad_r.xml", cv::FileStorage::WRITE);
-	fsFeature << "dataMat2" << AdvancedResult;
-	fsFeature.release();
-
 #pragma endregion
 #endif
+
+#pragma region Less_Cache
+	block_size = dim3(32, 32, 1);
+	grid_size = dim3((width + block_size.x - 1) / block_size.x, (height + block_size.y - 1) / block_size.y, 1);
+	
+	time = 0;
+	cudaEventCreate(&start_cuda, 0);
+	cudaEventCreate(&finish_cuda, 0);
+
+	cudaEventRecord(start_cuda, 0);
+	for (int i = 0; i < 100; i++) {
+		Sobel_Cache << <grid_size, block_size >> > (d_image_raw_data, d_out_data, width, height);
+		cudaDeviceSynchronize();
+	}
+	cudaEventRecord(finish_cuda, 0);
+	cudaEventSynchronize(finish_cuda);
+	cudaEventElapsedTime(&time, start_cuda, finish_cuda);
+	cudaEventDestroy(start_cuda);
+	cudaEventDestroy(finish_cuda);
+	//printf("device syn\n");
+	printf("Less Cache:%f ms\n", time);
+
+	cv::Mat LessCacheResult(height, width, CV_16UC1);
+	cudaMemcpy(LessCacheResult.data, d_out_data, width*height * sizeof(unsigned short), cudaMemcpyDeviceToHost);
+	cv::Mat LessCacheResult2(height, width, CV_8UC1);
+	LessCacheResult.convertTo(LessCacheResult2, CV_8UC1, 255.0 / 1000);
+	cv::imshow("less cache", LessCacheResult2);
+#pragma endregion
 
 	cudaEventDestroy(start_cuda);
 	cudaEventDestroy(finish_cuda);
