@@ -10,6 +10,8 @@
 #include <iostream>
 #include <string>
 
+#define TEST_TIMES 100
+
 __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned short* out, int width, int height, int depth)
 {
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -29,18 +31,14 @@ __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned short* out, in
 		return;
 	}
 	
-	int kernelx[3][3] = {
-		-1, 0, 1,
-		-2, 0, 2,
-		-1, 0, 1
+	float kernelx[3][3] = {
+
+		0.1096,    0.1118 ,   0.1096,
+		0.1118,    0.1141 ,   0.1118,
+		0.1096 ,   0.1118  ,  0.1096
 	};
-	int kernely[3][3] = {
-		-1, -2, -1,
-		0, 0, 0,
-		1, 2, 1
-	};
-	int resultx = 0;
-	int resulty = 0;
+
+	float resultx = 0;
 	for (int i = -1; i <= 1; i++)  // row
 	{
 		for (int j = -1; j <= 1; j++)  // col
@@ -48,16 +46,12 @@ __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned short* out, in
 			int tempx = idx + j;
 			int tempy = idy + i;
 			resultx += kernelx[i + 1][j + 1] * ptr[tempy*width + tempx];
-			resulty += kernely[i + 1][j + 1] * ptr[tempy*width + tempx];
 		}
 	}
 
 	resultx = abs(resultx);
-	resulty = abs(resulty);
-
-	//int temp = sqrtf(resultx*resultx + resulty*resulty);
-	int temp = resultx + resulty;
-	temp = temp > 65535 ? 65535 : temp;
+	int temp = resultx;
+	//temp = temp > 65535 ? 65535 : temp;
 	out[pixel_id ] = temp;
 	//out[pixel_id * depth + channel] = resultx + resulty;
 	//printf("x:%d, y:%d  z;%d origin:%d result:%d width:%d height:%d\n", idx, idy, channel, p4, temp, width, height);
@@ -103,18 +97,14 @@ __global__ void Advanced_Sobel_Kernel(unsigned char *ptr, unsigned short* out, i
 	{
 		
 		// convolution
-		int kernelx[3][3] = {
-			-1, 0, 1,
-			-2, 0, 2,
-			-1, 0, 1
+		float kernelx[3][3] = {
+
+			0.1096,    0.1118 ,   0.1096,
+			0.1118,    0.1141 ,   0.1118,
+			0.1096 ,   0.1118  ,  0.1096
 		};
-		int kernely[3][3] = {
-			-1, -2, -1,
-			0, 0, 0,
-			1, 2, 1
-		};
-		int resultx = 0;
-		int resulty = 0;
+
+		float resultx = 0;
 		int centerx_in_cache = threadIdx.y + block_size / 2;
 		int centery_in_cache = threadIdx.x + block_size / 2;
 
@@ -125,16 +115,12 @@ __global__ void Advanced_Sobel_Kernel(unsigned char *ptr, unsigned short* out, i
 				int cachex = centerx_in_cache + i;
 				int cachey = centery_in_cache + j;
 				resultx += kernelx[i + 1][j + 1] * block_cache[cachex][cachey]; 
-				resulty += kernely[i + 1][j + 1] * block_cache[cachex][cachey];
 			}
 		}
 
 		resultx = abs(resultx);
-		resulty = abs(resulty);
-
-		//int temp = sqrtf(resultx*resultx + resulty*resulty);
-		int temp = resultx + resulty;
-		temp = temp > 65535 ? 65535 : temp;
+		int temp = resultx;
+		//temp = temp > 65535 ? 65535 : temp;
 		//out[pixel_id] = temp;
 		
 		out[pixel_id] = temp;
@@ -241,18 +227,14 @@ __global__ void Sobel_Cache(unsigned char *ptr, unsigned short* out, int width, 
 
 	if (idx < width && idy < height)
 	{
-		int kernelx[3][3] = {
-			-1, 0, 1,
-			-2, 0, 2,
-			-1, 0, 1
+		float kernelx[3][3] = {
+
+			0.1096,    0.1118 ,   0.1096,
+			0.1118,    0.1141 ,   0.1118,
+			0.1096 ,   0.1118  ,  0.1096
 		};
-		int kernely[3][3] = {
-			-1, -2, -1,
-			0, 0, 0,
-			1, 2, 1
-		};
-		int resultx = 0;
-		int resulty = 0;
+		float resultx = 0;
+		//int resulty = 0;
 		int centerx_in_cache = threadIdx.y + 1;
 		int centery_in_cache = threadIdx.x + 1;
 
@@ -263,16 +245,13 @@ __global__ void Sobel_Cache(unsigned char *ptr, unsigned short* out, int width, 
 				int cachex = centerx_in_cache + i;
 				int cachey = centery_in_cache + j;
 				resultx += kernelx[i + 1][j + 1] * block_cache[cachex][cachey];
-				resulty += kernely[i + 1][j + 1] * block_cache[cachex][cachey];
 			}
 		}
 
 		resultx = abs(resultx);
-		resulty = abs(resulty);
 
-		//int temp = sqrtf(resultx*resultx + resulty*resulty);
-		int temp = resultx + resulty;
-		temp = temp > 65535 ? 65535 : temp;
+		int temp = resultx;
+		//temp = temp > 65535 ? 65535 : temp;
 		//out[pixel_id] = temp;
 
 		out[pixel_id] = temp;
@@ -292,8 +271,9 @@ int main(int argc, char**argv)
 #pragma region CPU_OpenCV
 	cv::Mat StandardCVResult;
 	clock_t start = clock();
-	for(int i=0;i<100;i++)
-		cv::Sobel(test, StandardCVResult, CV_8U, 1, 1, 3);
+	for (int i = 0; i < TEST_TIMES; i++)
+		//cv::Sobel(test, StandardCVResult, CV_8U, 1, 1, 3);
+		cv::GaussianBlur(test, StandardCVResult, cv::Size(3,3), 5, 5);
 	clock_t finish = clock();
 
 	printf("Standard OpenCV Sobel Timing: %f ms\n", 1000 * (double)(finish - start) / CLOCKS_PER_SEC);
@@ -326,7 +306,7 @@ int main(int argc, char**argv)
 
 	cudaEventRecord(start_cuda, 0);
 	//start = clock();
-	for (int i = 0; i < 100; i++)
+	for (int i = 0; i < TEST_TIMES; i++)
 	{
 		Simple_SobelX_Kernel << <grid_size, block_size >> > (d_image_raw_data, d_out_data, width, height, channels);
 		cudaDeviceSynchronize();
@@ -343,7 +323,7 @@ int main(int argc, char**argv)
 	cv::Mat SimpleResult(height, width, CV_16UC1); 
 	cudaMemcpy(SimpleResult.data, d_out_data, width*height * channels * sizeof(unsigned short), cudaMemcpyDeviceToHost);
 	cv::Mat SimpleResult2(height, width, CV_8UC1);
-	SimpleResult.convertTo(SimpleResult2, CV_8UC1, 255.0 / 1000);
+	SimpleResult.convertTo(SimpleResult2, CV_8UC1, 1);
 	cv::imshow("simple kernel", SimpleResult2);
 
 #pragma endregion
@@ -360,7 +340,7 @@ int main(int argc, char**argv)
 	cudaEventCreate(&finish_cuda, 0);
 
 	cudaEventRecord(start_cuda, 0);
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < TEST_TIMES; i++) {
 		Advanced_Sobel_Kernel << <grid_size, block_size >> > (d_image_raw_data, d_out_data, width, height);
 		cudaDeviceSynchronize();
 	}
@@ -375,7 +355,7 @@ int main(int argc, char**argv)
 	cv::Mat AdvancedResult(height, width, CV_16UC1);
 	cudaMemcpy(AdvancedResult.data, d_out_data, width*height * sizeof(unsigned short), cudaMemcpyDeviceToHost);
 	cv::Mat AdvancedResult2(height, width, CV_8UC1);
-	AdvancedResult.convertTo(AdvancedResult2, CV_8UC1, 255.0 / 1000);
+	AdvancedResult.convertTo(AdvancedResult2, CV_8UC1, 1);
 	cv::imshow("advanced kernel", AdvancedResult2);
 
 #pragma endregion
@@ -390,7 +370,7 @@ int main(int argc, char**argv)
 	cudaEventCreate(&finish_cuda, 0);
 
 	cudaEventRecord(start_cuda, 0);
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < TEST_TIMES; i++) {
 		Sobel_Cache << <grid_size, block_size >> > (d_image_raw_data, d_out_data, width, height);
 		cudaDeviceSynchronize();
 	}
@@ -405,7 +385,7 @@ int main(int argc, char**argv)
 	cv::Mat LessCacheResult(height, width, CV_16UC1);
 	cudaMemcpy(LessCacheResult.data, d_out_data, width*height * sizeof(unsigned short), cudaMemcpyDeviceToHost);
 	cv::Mat LessCacheResult2(height, width, CV_8UC1);
-	LessCacheResult.convertTo(LessCacheResult2, CV_8UC1, 255.0 / 1000);
+	LessCacheResult.convertTo(LessCacheResult2, CV_8UC1, 1);
 	cv::imshow("less cache", LessCacheResult2);
 #pragma endregion
 
