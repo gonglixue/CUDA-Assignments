@@ -18,34 +18,29 @@ __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned short* out, in
 	int idy = blockIdx.y*blockDim.y + threadIdx.y;
 	
 	int pixel_id = idy * width + idx;
-	if (idx > width || idy > height)
+	if (idx >= width || idy >= height)
 		return;
-	if (idx == 0 || idx == width - 1)
-	{
-		out[pixel_id] = ptr[pixel_id];
-		return;
-	};
-	if (idy == 0 || idy == height - 1)
-	{
-		out[pixel_id] = ptr[pixel_id];
-		return;
-	}
 	
-	float kernelx[3][3] = {
+	float kernelx[5][5] = {
 
-		0.1096,    0.1118 ,   0.1096,
-		0.1118,    0.1141 ,   0.1118,
-		0.1096 ,   0.1118  ,  0.1096
+
+		0.0369,    0.0392,    0.0400    ,0.0392 ,   0.0369,
+		0.0392 ,   0.0416 ,   0.0424   , 0.0416  ,  0.0392,
+		0.0400  ,  0.0424  ,  0.0433  ,  0.0424   , 0.0400,
+		0.0392   , 0.0416   , 0.0424 ,   0.0416    ,0.0392,
+		0.0369    ,0.0392    ,0.0400,    0.0392    ,0.0369
 	};
+	int kernel_radius = 2;
 
 	float resultx = 0;
-	for (int i = -1; i <= 1; i++)  // row
+	for (int i = -1*kernel_radius; i <= kernel_radius; i++)  // row
 	{
-		for (int j = -1; j <= 1; j++)  // col
+		for (int j = -1*kernel_radius; j <= kernel_radius; j++)  // col
 		{
 			int tempx = idx + j;
 			int tempy = idy + i;
-			resultx += kernelx[i + 1][j + 1] * ptr[tempy*width + tempx];
+			if(tempx>=0 && tempx<width && tempy>-0 && tempy<height)
+				resultx += kernelx[i + kernel_radius][j + kernel_radius] * ptr[tempy*width + tempx];
 		}
 	}
 
@@ -97,24 +92,28 @@ __global__ void Advanced_Sobel_Kernel(unsigned char *ptr, unsigned short* out, i
 	{
 		
 		// convolution
-		float kernelx[3][3] = {
+		float kernelx[5][5] = {
 
-			0.1096,    0.1118 ,   0.1096,
-			0.1118,    0.1141 ,   0.1118,
-			0.1096 ,   0.1118  ,  0.1096
+
+			0.0369,    0.0392,    0.0400    ,0.0392 ,   0.0369,
+			0.0392 ,   0.0416 ,   0.0424   , 0.0416  ,  0.0392,
+			0.0400  ,  0.0424  ,  0.0433  ,  0.0424   , 0.0400,
+			0.0392   , 0.0416   , 0.0424 ,   0.0416    ,0.0392,
+			0.0369    ,0.0392    ,0.0400,    0.0392    ,0.0369
 		};
+		const int kernel_radius = 2;
 
 		float resultx = 0;
 		int centerx_in_cache = threadIdx.y + block_size / 2;
 		int centery_in_cache = threadIdx.x + block_size / 2;
 
-		for (int i = -1; i <= 1; i++)  // row
+		for (int i = -1*kernel_radius; i <= kernel_radius; i++)  // row
 		{
-			for (int j = -1; j <= 1; j++)  // col
+			for (int j = -1*kernel_radius; j <= kernel_radius; j++)  // col
 			{
 				int cachex = centerx_in_cache + i;
 				int cachey = centery_in_cache + j;
-				resultx += kernelx[i + 1][j + 1] * block_cache[cachex][cachey]; 
+				resultx += kernelx[i + kernel_radius][j + kernel_radius] * block_cache[cachex][cachey];
 			}
 		}
 
@@ -227,20 +226,23 @@ __global__ void Sobel_Cache(unsigned char *ptr, unsigned short* out, int width, 
 
 	if (idx < width && idy < height)
 	{
-		float kernelx[3][3] = {
+		float kernelx[5][5] = {
 
-			0.1096,    0.1118 ,   0.1096,
-			0.1118,    0.1141 ,   0.1118,
-			0.1096 ,   0.1118  ,  0.1096
+
+			0.0369,    0.0392,    0.0400    ,0.0392 ,   0.0369,
+			0.0392 ,   0.0416 ,   0.0424   , 0.0416  ,  0.0392,
+			0.0400  ,  0.0424  ,  0.0433  ,  0.0424   , 0.0400,
+			0.0392   , 0.0416   , 0.0424 ,   0.0416    ,0.0392,
+			0.0369    ,0.0392    ,0.0400,    0.0392    ,0.0369
 		};
 		float resultx = 0;
 		//int resulty = 0;
 		int centerx_in_cache = threadIdx.y + 1;
 		int centery_in_cache = threadIdx.x + 1;
 
-		for (int i = -1; i <= 1; i++)  // row
+		for (int i = -2; i <= 2; i++)  // row
 		{
-			for (int j = -1; j <= 1; j++)  // col
+			for (int j = -2; j <= 2; j++)  // col
 			{
 				int cachex = centerx_in_cache + i;
 				int cachey = centery_in_cache + j;
@@ -296,7 +298,7 @@ int main(int argc, char**argv)
 
 #if 1
 #pragma region GPU_Simple
-	block_size = dim3(16, 16, channels);
+	block_size = dim3(32, 32, channels);
 	grid_size = dim3((width + block_size.x - 1) / block_size.x, (height + block_size.y - 1) / block_size.y, 1);
 
 	cudaEvent_t start_cuda, finish_cuda;
@@ -361,6 +363,7 @@ int main(int argc, char**argv)
 #pragma endregion
 #endif
 
+#if 0
 #pragma region Less_Cache
 	block_size = dim3(32, 32, 1);
 	grid_size = dim3((width + block_size.x - 1) / block_size.x, (height + block_size.y - 1) / block_size.y, 1);
@@ -388,7 +391,7 @@ int main(int argc, char**argv)
 	LessCacheResult.convertTo(LessCacheResult2, CV_8UC1, 1);
 	cv::imshow("less cache", LessCacheResult2);
 #pragma endregion
-
+#endif
 	cudaEventDestroy(start_cuda);
 	cudaEventDestroy(finish_cuda);
 	cv::waitKey();
