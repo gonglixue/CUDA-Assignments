@@ -28,27 +28,31 @@ __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned short* out, in
 		out[pixel_id] = ptr[pixel_id];
 		return;
 	}
-
 	
+	int kernelx[3][3] = {
+		-1, 0, 1,
+		-2, 0, 2,
+		-1, 0, 1
+	};
+	int kernely[3][3] = {
+		-1, -2, -1,
+		0, 0, 0,
+		1, 2, 1
+	};
+	int resultx = 0;
+	int resulty = 0;
+	for (int i = -1; i <= 1; i++)  // row
+	{
+		for (int j = -1; j <= 1; j++)  // col
+		{
+			int tempx = idx + j;
+			int tempy = idy + i;
+			resultx += kernelx[i + 1][j + 1] * ptr[tempy*width + tempx];
+			resulty += kernely[i + 1][j + 1] * ptr[tempy*width + tempx];
+		}
+	}
 
-	int p0 = ptr[(pixel_id-width-1)];
-	int p1 = ptr[(pixel_id-width)];
-	int p2 = ptr[(pixel_id-width+1)];
-
-	int p3 = ptr[(pixel_id-1)];
-	int p4 = ptr[pixel_id];
-	int p5 = ptr[(pixel_id + 1)];
-
-	int p6 = ptr[(pixel_id + width - 1)];
-	int p7 = ptr[(pixel_id + width)];
-	int p8 = ptr[(pixel_id + width + 1)];
-
-	int resultx = -1 * p0 - 2 * p3 - 1 * p6
-		+ 1 * p2 + 2 * p5 + 1 * p8;
 	resultx = abs(resultx);
-
-	int resulty = -1 * p0 - 2 * p1 - 1 * p2
-		+ p6 + 2 * p7 + p8;
 	resulty = abs(resulty);
 
 	//int temp = sqrtf(resultx*resultx + resulty*resulty);
@@ -88,80 +92,44 @@ __global__ void Advanced_Sobel_Kernel(unsigned char *ptr, unsigned short* out, i
 				value = 0;
 			else
 				value = ptr[temp_y*width + temp_x];
-			block_cache[2*threadIdx.x + j][2*threadIdx.y + i] = value;
+			block_cache[2*threadIdx.y + j][2*threadIdx.x + i] = value;
 			//printf("what are you doing?\n");
 		}
 	}
 	__syncthreads();
 	//printf("after sync threads\n");
-
-	/*
-	if (idx > width || idy > height)
-		return;
-	if (idx == 0 || idx == width - 1)
-	{
-		out[pixel_id] = ptr[pixel_id];
-		return;
-	};
-	if (idy == 0 || idy == height - 1)
-	{
-		out[pixel_id] = ptr[pixel_id];
-		return;
-	}
-
-	int p0 = ptr[(pixel_id - width - 1)];
-	int p1 = ptr[(pixel_id - width)];
-	int p2 = ptr[(pixel_id - width + 1)];
-
-	int p3 = ptr[(pixel_id - 1)];
-	int p4 = ptr[pixel_id];
-	int p5 = ptr[(pixel_id + 1)];
-
-	int p6 = ptr[(pixel_id + width - 1)];
-	int p7 = ptr[(pixel_id + width)];
-	int p8 = ptr[(pixel_id + width + 1)];
-
-	int resultx = -1 * p0 - 2 * p3 - 1 * p6
-		+ 1 * p2 + 2 * p5 + 1 * p8;
-	resultx = abs(resultx);
-
-	int resulty = -1 * p0 - 2 * p1 - 1 * p2
-		+ p6 + 2 * p7 + p8;
-	resulty = abs(resulty);
-
-
-	int temp = resultx + resulty;
-	temp = temp > 65535 ? 65535 : temp;
-	out[pixel_id] = temp;
-	*/
-	
-	
 	
 	if (idx < width && idy < height)
 	{
 		
 		// convolution
-		int centerx_in_cache = threadIdx.x + block_size/2;
-		int centery_in_cache = threadIdx.y + block_size/2;
+		int kernelx[3][3] = {
+			-1, 0, 1,
+			-2, 0, 2,
+			-1, 0, 1
+		};
+		int kernely[3][3] = {
+			-1, -2, -1,
+			0, 0, 0,
+			1, 2, 1
+		};
+		int resultx = 0;
+		int resulty = 0;
+		int centerx_in_cache = threadIdx.y + block_size / 2;
+		int centery_in_cache = threadIdx.x + block_size / 2;
 
-		int p0 = block_cache[centerx_in_cache - 1][centery_in_cache - 1];
-		int p1 = block_cache[centerx_in_cache][centery_in_cache - 1];
-		int p2 = block_cache[centerx_in_cache + 1][centery_in_cache - 1];
+		for (int i = -1; i <= 1; i++)  // row
+		{
+			for (int j = -1; j <= 1; j++)  // col
+			{
+				int cachex = centerx_in_cache + i;
+				int cachey = centery_in_cache + j;
+				resultx += kernelx[i + 1][j + 1] * block_cache[cachex][cachey]; 
+				resulty += kernely[i + 1][j + 1] * block_cache[cachex][cachey];
+			}
+		}
 
-		int p3 = block_cache[centerx_in_cache - 1][centery_in_cache];
-		int p4 = block_cache[centerx_in_cache][centery_in_cache];
-		int p5 = block_cache[centerx_in_cache + 1][centery_in_cache];
-
-		int p6 = block_cache[centerx_in_cache - 1][centery_in_cache + 1];
-		int p7 = block_cache[centerx_in_cache][centery_in_cache + 1];
-		int p8 = block_cache[centerx_in_cache + 1][centery_in_cache + 1];
-
-		int resultx = -1 * p0 - 2 * p3 - 1 * p6
-			+ 1 * p2 + 2 * p5 + 1 * p8;
 		resultx = abs(resultx);
-
-		int resulty = -1 * p0 - 2 * p1 - 1 * p2
-			+ p6 + 2 * p7 + p8;
 		resulty = abs(resulty);
 
 		//int temp = sqrtf(resultx*resultx + resulty*resulty);
@@ -273,26 +241,33 @@ __global__ void Sobel_Cache(unsigned char *ptr, unsigned short* out, int width, 
 
 	if (idx < width && idy < height)
 	{
-		int centerx_in_cache = threadIdx.y + 1;  // cache row
-		int centery_in_cache = threadIdx.x + 1;  // cache col
-		int p0 = block_cache[centerx_in_cache - 1][centery_in_cache - 1];
-		int p1 = block_cache[centerx_in_cache][centery_in_cache - 1];
-		int p2 = block_cache[centerx_in_cache + 1][centery_in_cache - 1];
+		int kernelx[3][3] = {
+			-1, 0, 1,
+			-2, 0, 2,
+			-1, 0, 1
+		};
+		int kernely[3][3] = {
+			-1, -2, -1,
+			0, 0, 0,
+			1, 2, 1
+		};
+		int resultx = 0;
+		int resulty = 0;
+		int centerx_in_cache = threadIdx.y + 1;
+		int centery_in_cache = threadIdx.x + 1;
 
-		int p3 = block_cache[centerx_in_cache - 1][centery_in_cache];
-		int p4 = block_cache[centerx_in_cache][centery_in_cache];
-		int p5 = block_cache[centerx_in_cache + 1][centery_in_cache];
+		for (int i = -1; i <= 1; i++)  // row
+		{
+			for (int j = -1; j <= 1; j++)  // col
+			{
+				int cachex = centerx_in_cache + i;
+				int cachey = centery_in_cache + j;
+				resultx += kernelx[i + 1][j + 1] * block_cache[cachex][cachey];
+				resulty += kernely[i + 1][j + 1] * block_cache[cachex][cachey];
+			}
+		}
 
-		int p6 = block_cache[centerx_in_cache - 1][centery_in_cache + 1];
-		int p7 = block_cache[centerx_in_cache][centery_in_cache + 1];
-		int p8 = block_cache[centerx_in_cache + 1][centery_in_cache + 1];
-
-		int resultx = -1 * p0 - 2 * p3 - 1 * p6
-			+ 1 * p2 + 2 * p5 + 1 * p8;
 		resultx = abs(resultx);
-
-		int resulty = -1 * p0 - 2 * p1 - 1 * p2
-			+ p6 + 2 * p7 + p8;
 		resulty = abs(resulty);
 
 		//int temp = sqrtf(resultx*resultx + resulty*resulty);
