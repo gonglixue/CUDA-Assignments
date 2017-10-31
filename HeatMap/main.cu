@@ -4,11 +4,15 @@
 #include <opencv2/core/core.hpp>
 #include "../common/util.h"
 
-__constant__ int DIM = 1024;
-__constant__ float SPEED = 0.25f;
-__constant__ float PI = 3.141592653f;
-__constant__ float MAX_TEMP = 1.0F;
-__constant__ float MIN_TEMP = 0.0001F;
+#define DIM 1024
+//__constant__ float SPEED = 0.25f;
+//__constant__ float PI = 3.141592653f;
+//__constant__ float MAX_TEMP = 1.0F;
+//__constant__ float MIN_TEMP = 0.0001F;
+#define SPEED 0.25f
+#define PI 3.1415926f
+#define MAX_TEMP 1.0F
+#define MIN_TEMP 0.0001F
 
 struct DataBlock {
 	unsigned char *output_bitmap;
@@ -160,4 +164,58 @@ void anim_exit(DataBlock *d)
 int main(void)
 {
 	DataBlock data;
+	cv::Mat bitmap(DIM, DIM, CV_8UC4);
+	data.bitmap = &bitmap;
+	data.totalTime = 0;
+	data.frames = 0;
+	cudaEventCreate(&data.start);
+	cudaEventCreate(&data.stop);
+
+	int bitmap_size = DIM*DIM * 4;
+	cudaMalloc((void**)&data.output_bitmap, bitmap_size);  // 4 channels, output_bitmap是在显存上，存储的是0~255颜色值
+	cudaMalloc((void**)&data.dev_inSrc, bitmap_size );  // inSrc和constSrc相当于是1通道的float，所以不需要*sizeof(float)
+	cudaMalloc((void**)&data.dev_outSrc, bitmap_size);  
+	cudaMalloc((void**)&data.dev_constSrc, bitmap_size );
+
+	float *temp = (float*)malloc(bitmap_size * sizeof(float));  //用于初始化constSrc
+	for (int i = 0; i < DIM*DIM; i++)
+	{
+		temp[i] = 0;
+		int x = i%DIM;
+		int y = i / DIM;
+		if ((x > 300)&(x < 600) & (y > 310) && (y < 601))
+			temp[i] = MAX_TEMP;
+	}
+	temp[DIM * 100 + 100] = (MAX_TEMP + MIN_TEMP) / 2;
+	temp[DIM * 700 + 100] = MIN_TEMP;
+	temp[DIM * 300 + 300] = MIN_TEMP;
+	temp[DIM * 200 + 700] = MIN_TEMP;
+	for (int y = 800; y<900; y++) {
+		for (int x = 400; x<500; x++) {
+			temp[x + y*DIM] = MIN_TEMP;
+		}
+	}
+
+	cudaMemcpy(data.dev_constSrc, temp, bitmap_size, cudaMemcpyHostToDevice);
+
+	for (int y = 800; y < DIM; y++)
+	{
+		for (int x = 0; x < 200; x++) {
+			temp[x + y*DIM] = MAX_TEMP;
+		}
+	}
+	cudaMemcpy(data.dev_inSrc, temp, bitmap_size, cudaMemcpyHostToDevice);
+
+	free(temp);
+
+	while (true)
+	{
+		anim_gpu(&data, 0);
+		cv::imshow("anim", *data.bitmap);
+		int input = cv::waitKey(30);
+		if (input == 27)
+			break;
+	}
+
+	anim_exit(&data);
 }
