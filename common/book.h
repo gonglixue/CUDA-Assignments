@@ -17,7 +17,10 @@
 #ifndef __BOOK_H__
 #define __BOOK_H__
 #include <stdio.h>
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
+#define EXIT_FAILURE 0
 static void HandleError( cudaError_t err,
                          const char *file,
                          int line ) {
