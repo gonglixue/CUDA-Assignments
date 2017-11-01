@@ -132,7 +132,8 @@ void anim_gpu(DataBlock *d, int ticks)
 
 		blend_kernel << <grid_size, block_size >> > (d->dev_outSrc, d->dev_inSrc);
 
-		swap(d->dev_inSrc, d->dev_outSrc);
+		//swap(d->dev_inSrc, d->dev_outSrc);  // 为什么要交换，直接把out赋给in可以吗?貌似是可以的
+		d->dev_inSrc = d->dev_outSrc;
 	}
 	
 	float_to_color << <grid_size, block_size >> > (d->output_bitmap, d->dev_inSrc);
