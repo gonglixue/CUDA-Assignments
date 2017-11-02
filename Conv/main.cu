@@ -43,7 +43,7 @@ __global__ void Simple_SobelX_Kernel(unsigned char *ptr, unsigned short* out, in
 		{
 			int tempx = idx + j;
 			int tempy = idy + i;
-			if(tempx>=0 && tempx<width && tempy>-0 && tempy<height)
+			if(tempx>=0 && tempx<width && tempy>=0 && tempy<height)
 				resultx += kernelx[i + kernel_radius][j + kernel_radius] * ptr[tempy*width + tempx];
 		}
 	}
