@@ -278,6 +278,7 @@ int main(int argc, char**argv)
 	channels = test.channels();
 	printf("channel: %d\n", channels);
 
+#if 0
 #pragma region CPU_OpenCV
 	cv::Mat StandardCVResult;
 	clock_t start = clock();
@@ -289,6 +290,12 @@ int main(int argc, char**argv)
 	printf("Standard OpenCV Sobel Timing: %f ms\n", 1000 * (double)(finish - start) / CLOCKS_PER_SEC);
 	cv::imshow("standard cv", StandardCVResult);
 #pragma endregion
+#endif
+	cudaEvent_t start_cuda, finish_cuda;
+	float time;
+	time = 0;
+	cudaEventCreate(&start_cuda, 0);
+	cudaEventCreate(&finish_cuda, 0);
 
 	// allocate host memory
 	uchar* h_image_raw_data = new uchar[width*height * channels];
@@ -304,13 +311,11 @@ int main(int argc, char**argv)
 
 	dim3 block_size, grid_size;
 
-#if 1
+#if 0
 #pragma region GPU_Simple
 	block_size = dim3(32, 32, channels);
 	grid_size = dim3((width + block_size.x - 1) / block_size.x, (height + block_size.y - 1) / block_size.y, 1);
 
-	cudaEvent_t start_cuda, finish_cuda;
-	float time;
 	cudaEventCreate(&start_cuda, 0);
 	cudaEventCreate(&finish_cuda, 0);
 
@@ -345,15 +350,18 @@ int main(int argc, char**argv)
 	grid_size = dim3((width + block_size.x - 1) / block_size.x, (height + block_size.y - 1) / block_size.y, 1);
 	
 	//cudaMemset(d_out_data, 0, width*height * sizeof(unsigned short));
-	time = 0;
-	cudaEventCreate(&start_cuda, 0);
-	cudaEventCreate(&finish_cuda, 0);
+
 
 	cudaEventRecord(start_cuda, 0);
 	for (int i = 0; i < TEST_TIMES; i++) {
 		Advanced_Sobel_Kernel << <grid_size, block_size >> > (d_image_raw_data, d_out_data, width, height);
 		cudaDeviceSynchronize();
 	}
+
+
+	cv::Mat AdvancedResult(height, width, CV_16UC1);
+	cudaMemcpy(AdvancedResult.data, d_out_data, width*height * sizeof(unsigned short), cudaMemcpyDeviceToHost);
+
 	cudaEventRecord(finish_cuda, 0);
 	cudaEventSynchronize(finish_cuda);
 	cudaEventElapsedTime(&time, start_cuda, finish_cuda);
@@ -362,8 +370,6 @@ int main(int argc, char**argv)
 	//printf("device syn\n");
 	printf("Advanced GPU:%f ms\n", time);
 
-	cv::Mat AdvancedResult(height, width, CV_16UC1);
-	cudaMemcpy(AdvancedResult.data, d_out_data, width*height * sizeof(unsigned short), cudaMemcpyDeviceToHost);
 	cv::Mat AdvancedResult2(height, width, CV_8UC1);
 	AdvancedResult.convertTo(AdvancedResult2, CV_8UC1, 1);
 	cv::imshow("advanced kernel", AdvancedResult2);

@@ -12,7 +12,7 @@
 
 #define GAUSSIAN_KERNEL_SIZE 9
 #define GAUSSIAN_KERNEL_RADIUS 4
-#define CHUNCKS 16
+#define CHUNCKS 8
 
 static void HandleError(cudaError_t err, const char *file, int line) {
 	if (err != cudaSuccess) {
@@ -39,16 +39,16 @@ __global__ void GaussianWithSharedMem(unsigned char* in_data, unsigned char* out
 		for (int j = 0; j < 2; j++)
 		{
 			int temp_x = x + i;
-			int temp_y = y + j;
+			int temp_y = y + j + GAUSSIAN_KERNEL_RADIUS;
 			int value;
 			if (temp_x < 0 || temp_x>(chunck_width - 1))
 				value = 0;
-			else if (temp_y < -1*GAUSSIAN_KERNEL_RADIUS || temp_y >(chunck_height - 1 - GAUSSIAN_KERNEL_RADIUS))
+			else if (temp_y < 0 || temp_y >(chunck_height - 1))
 				value = 0;
 			else
-				value = in_data[(temp_y+GAUSSIAN_KERNEL_RADIUS) * chunck_width + temp_x];
+				value = in_data[(temp_y) * chunck_width + temp_x];
 
-			block_cache[2 * threadIdx.y + j][2 * threadIdx.y + i] = value;
+			block_cache[2 * threadIdx.y + j][2 * threadIdx.x + i] = value;
 		}
 	}
 	__syncthreads();
@@ -87,8 +87,8 @@ __global__ void GaussianWithSharedMem(unsigned char* in_data, unsigned char* out
 
 		result = abs(result);
 		int pixel_id = idy * chunck_width + idx;
-		//out_data[pixel_id] = (int)result;
-		out_data[pixel_id] = 0;
+		out_data[pixel_id] = (int)result;
+		//out_data[pixel_id] = 0;
 	}
 }
 
@@ -141,6 +141,17 @@ int main(int argc, char** argv)
 	width = origin_image.cols;
 	height = origin_image.rows;
 
+
+	int chunck_height = height / CHUNCKS;
+	int chunck_data_size = width*(chunck_height + GAUSSIAN_KERNEL_RADIUS * 2);
+	int chunck_valid_size = width * chunck_height;
+
+	// start the timers
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
+
 	// host data: origin_image.data
 	uchar* h_image_data,*h_image_out;
 	uchar* d_image_data0, *d_image_data1;
@@ -149,9 +160,6 @@ int main(int argc, char** argv)
 	cudaHostAlloc((void**)&h_image_data, width*(height+2*GAUSSIAN_KERNEL_RADIUS), cudaHostAllocDefault);  // paged-locked
 	cudaHostAlloc((void**)&h_image_out, width*height, cudaHostAllocDefault);
 
-	int chunck_height = height / CHUNCKS;
-	int chunck_data_size = width*(chunck_height + GAUSSIAN_KERNEL_RADIUS*2);
-	int chunck_valid_size = width * chunck_height;
 
 	cudaMalloc((void**)&d_image_data0, chunck_data_size);  // 输入包含上下overlap部分
 	cudaMalloc((void**)&d_image_data1, chunck_data_size);
@@ -163,6 +171,7 @@ int main(int argc, char** argv)
 
 	// initialize the treams
 	cudaStream_t stream0, stream1;
+	float elapsedTime;
 	cudaStreamCreate(&stream0);
 	cudaStreamCreate(&stream1);
 
@@ -170,8 +179,9 @@ int main(int argc, char** argv)
 	dim3 grid_size = dim3((width + block_size.x - 1) / block_size.x, 
 		(chunck_height+block_size.y - 1) / block_size.y, 
 		1);
-	// 实际线程只覆盖有效像素区域
 
+	// 实际线程只覆盖有效像素区域
+	for(int n=0;n<100;n++)
 	for (int i = 0; i < CHUNCKS/2; i++)
 	{
 		int data_offset0 = width*(chunck_height * 2 * i) + width*GAUSSIAN_KERNEL_RADIUS;
@@ -182,10 +192,10 @@ int main(int argc, char** argv)
 		cudaMemcpyAsync(d_image_data1, h_image_data + data_offset1 - width*GAUSSIAN_KERNEL_RADIUS, chunck_data_size,
 			cudaMemcpyHostToDevice, stream1);
 
-		//GaussianWithSharedMem << <grid_size, block_size, 0, stream0 >> > (d_image_data0, d_image_out0, width, chunck_height+2*GAUSSIAN_KERNEL_RADIUS);
-		//GaussianWithSharedMem << <grid_size, block_size, 0, stream1 >> > (d_image_data1, d_image_out1, width, chunck_height + 2 * GAUSSIAN_KERNEL_RADIUS);
-		GaussianWithGlobalMem << <grid_size, block_size, 0, stream0 >> > (d_image_data0, d_image_out0, width, chunck_height + 2 * GAUSSIAN_KERNEL_RADIUS);
-		GaussianWithGlobalMem << <grid_size, block_size, 0, stream1 >> > (d_image_data1, d_image_out1, width, chunck_height + 2 * GAUSSIAN_KERNEL_RADIUS);
+		GaussianWithSharedMem << <grid_size, block_size, 0, stream0 >> > (d_image_data0, d_image_out0, width, chunck_height+2*GAUSSIAN_KERNEL_RADIUS);
+		GaussianWithSharedMem << <grid_size, block_size, 0, stream1 >> > (d_image_data1, d_image_out1, width, chunck_height + 2 * GAUSSIAN_KERNEL_RADIUS);
+		//GaussianWithGlobalMem << <grid_size, block_size, 0, stream0 >> > (d_image_data0, d_image_out0, width, chunck_height + 2 * GAUSSIAN_KERNEL_RADIUS);
+		//GaussianWithGlobalMem << <grid_size, block_size, 0, stream1 >> > (d_image_data1, d_image_out1, width, chunck_height + 2 * GAUSSIAN_KERNEL_RADIUS);
 
 		cudaMemcpyAsync(h_image_out + data_offset0 - width*GAUSSIAN_KERNEL_RADIUS, d_image_out0, chunck_valid_size,
 			cudaMemcpyDeviceToHost, stream0);
@@ -196,6 +206,11 @@ int main(int argc, char** argv)
 
 	cudaStreamSynchronize(stream0);
 	cudaStreamSynchronize(stream1);
+
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+	printf("convolution with stream: %3.1f ms\n", elapsedTime);
 
 	cv::Mat result_image(height, width, CV_8UC1);
 	result_image.data = h_image_out;
